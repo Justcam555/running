@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Running Dashboard</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-elev: #161b22;
+    --bg-elev-2: #1f2630;
+    --border: #2a313c;
+    --text: #e6edf3;
+    --text-dim: #8b96a3;
+    --accent: #4cc2ff;
+    --accent-2: #f78166;
+    --good: #5edc8b;
+    --warn: #f5c466;
+    --bad: #ff7b72;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 14px; font-weight: 600; margin: 32px 0 12px; color: var(--text-dim);
+       text-transform: uppercase; letter-spacing: 0.08em; }
+  .timestamp { font-size: 12px; color: var(--text-dim); margin: 0 0 24px; }
+
+  .card { background: var(--bg-elev); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px; }
+  .header-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat { display: flex; flex-direction: column; gap: 4px; }
+  .stat .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase;
+                 letter-spacing: 0.08em; }
+  .stat .value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat .sub { font-size: 12px; color: var(--text-dim); }
+
+  .tabs { display: flex; gap: 4px; background: var(--bg-elev); padding: 4px;
+          border-radius: 10px; border: 1px solid var(--border); width: fit-content; }
+  .tab { background: transparent; color: var(--text-dim); border: 0;
+         padding: 6px 14px; font-size: 13px; font-weight: 500; border-radius: 7px;
+         cursor: pointer; }
+  .tab.active { background: var(--bg-elev-2); color: var(--text); }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi { background: var(--bg-elev); border: 1px solid var(--border);
+         border-radius: 10px; padding: 14px; }
+  .kpi .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase;
+                letter-spacing: 0.08em; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin: 6px 0 2px;
+                letter-spacing: -0.02em; }
+  .yoy { font-size: 12px; font-weight: 500; }
+  .yoy.up { color: var(--good); }
+  .yoy.down { color: var(--bad); }
+  .yoy.flat { color: var(--text-dim); }
+
+  .chart-wrap { background: var(--bg-elev); border: 1px solid var(--border);
+                border-radius: 12px; padding: 16px; }
+  .chart-wrap canvas { width: 100% !important; height: 260px !important; }
+
+  .focus-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .focus { background: var(--bg-elev); border: 1px solid var(--border);
+           border-left: 3px solid var(--accent); border-radius: 10px;
+           padding: 14px; }
+  .focus:nth-child(2) { border-left-color: var(--accent-2); }
+  .focus:nth-child(3) { border-left-color: var(--good); }
+  .focus .title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .focus .body { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  .race-list { display: flex; flex-direction: column; gap: 8px; }
+  .race { display: flex; justify-content: space-between; align-items: center;
+          background: var(--bg-elev); border: 1px solid var(--border);
+          border-radius: 10px; padding: 12px 14px; }
+  .race .name { font-weight: 600; font-size: 14px; }
+  .race .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .countdown { font-size: 18px; font-weight: 600; color: var(--accent); }
+  .countdown .unit { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+
+  .runs-table { width: 100%; border-collapse: collapse; font-size: 13px;
+                background: var(--bg-elev); border: 1px solid var(--border);
+                border-radius: 10px; overflow: hidden; }
+  .runs-table th, .runs-table td {
+    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border);
+  }
+  .runs-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+                   color: var(--text-dim); font-weight: 600; background: var(--bg-elev-2); }
+  .runs-table tr:last-child td { border-bottom: 0; }
+  .runs-table td.note { color: var(--text-dim); }
+
+  .plan { background: var(--bg-elev); border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px 18px;
+          font-size: 13px; line-height: 1.55; color: var(--text); }
+  .plan pre, .plan code { background: var(--bg-elev-2); padding: 1px 5px;
+                          border-radius: 4px; font-size: 12px; }
+  .plan h3 { font-size: 14px; margin: 14px 0 6px; color: var(--text); }
+  .plan p { margin: 6px 0; color: var(--text-dim); }
+  .plan ul { margin: 6px 0 6px 18px; padding: 0; color: var(--text-dim); }
+  .plan table { width: 100%; border-collapse: collapse; margin: 10px 0;
+                font-size: 12px; }
+  .plan th, .plan td { padding: 6px 8px; border-bottom: 1px solid var(--border);
+                       text-align: left; color: var(--text-dim); }
+  .plan th { color: var(--text); }
+
+  .empty { color: var(--text-dim); font-size: 13px; padding: 18px;
+           text-align: center; background: var(--bg-elev);
+           border: 1px dashed var(--border); border-radius: 10px; }
+
+  @media (max-width: 720px) {
+    .header-grid, .kpis, .focus-grid { grid-template-columns: 1fr 1fr; }
+    .runs-table th:nth-child(5), .runs-table td:nth-child(5) { display: none; }
+  }
+  @media (max-width: 480px) {
+    .header-grid, .kpis, .focus-grid { grid-template-columns: 1fr; }
+    .stat .value, .kpi .value { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Running Dashboard</h1>
+  <div class="timestamp" id="gen-ts"></div>
+
+  <div class="card header-grid" id="header-card"></div>
+
+  <h2>Period</h2>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-period="week">Week</button>
+    <button class="tab" data-period="month">Month</button>
+    <button class="tab" data-period="year">Year</button>
+  </div>
+
+  <h2>Key Metrics</h2>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Mileage</h2>
+  <div class="chart-wrap"><canvas id="mileage-chart"></canvas></div>
+
+  <h2>Pace Trend</h2>
+  <div class="chart-wrap"><canvas id="pace-chart"></canvas></div>
+
+  <h2>Focus Areas</h2>
+  <div class="focus-grid" id="focus"></div>
+
+  <h2>Upcoming Races</h2>
+  <div id="races"></div>
+
+  <h2>Recent Runs</h2>
+  <div id="recent"></div>
+
+  <h2>Training Plan</h2>
+  <div class="plan" id="plan"></div>
+</div>
+
+<script id="dashboard-data" type="application/json">{"generated_at":"2026-05-19T07:11:08+07:00","today":"2026-05-19","header":{"week_distance_km":0.0,"streak_days":0,"next_race":{"event":"10K","location":"Bangkok","date":"2026-07-19","goal":"comfortable race effort, target 6:30-6:45/km","days_to_go":61}},"periods":{"week":{"current":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"last_year":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"mileage_buckets_current":[{"week_start":"2026-05-18","label":"18 May","distance_km":0.0}],"mileage_buckets_last_year":[{"week_start":"2025-05-19","label":"19 May","distance_km":0.0}],"pace_points":[]},"month":{"current":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"last_year":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"mileage_buckets_current":[{"week_start":"2026-04-13","label":"13 Apr","distance_km":0.0},{"week_start":"2026-04-20","label":"20 Apr","distance_km":0.0},{"week_start":"2026-04-27","label":"27 Apr","distance_km":0.0},{"week_start":"2026-05-04","label":"4 May","distance_km":0.0},{"week_start":"2026-05-11","label":"11 May","distance_km":0.0},{"week_start":"2026-05-18","label":"18 May","distance_km":0.0}],"mileage_buckets_last_year":[{"week_start":"2025-04-14","label":"14 Apr","distance_km":0.0},{"week_start":"2025-04-21","label":"21 Apr","distance_km":0.0},{"week_start":"2025-04-28","label":"28 Apr","distance_km":0.0},{"week_start":"2025-05-05","label":"5 May","distance_km":0.0},{"week_start":"2025-05-12","label":"12 May","distance_km":0.0},{"week_start":"2025-05-19","label":"19 May","distance_km":0.0}],"pace_points":[]},"year":{"current":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"last_year":{"distance_km":0.0,"n_runs":0,"avg_hr_bpm":null,"avg_pace_sec_per_km":null,"total_time_sec":0},"mileage_buckets_current":[{"week_start":"2025-05-26","label":"26 May","distance_km":0.0},{"week_start":"2025-06-02","label":"2 Jun","distance_km":0.0},{"week_start":"2025-06-09","label":"9 Jun","distance_km":0.0},{"week_start":"2025-06-16","label":"16 Jun","distance_km":0.0},{"week_start":"2025-06-23","label":"23 Jun","distance_km":0.0},{"week_start":"2025-06-30","label":"30 Jun","distance_km":0.0},{"week_start":"2025-07-07","label":"7 Jul","distance_km":0.0},{"week_start":"2025-07-14","label":"14 Jul","distance_km":0.0},{"week_start":"2025-07-21","label":"21 Jul","distance_km":0.0},{"week_start":"2025-07-28","label":"28 Jul","distance_km":0.0},{"week_start":"2025-08-04","label":"4 Aug","distance_km":0.0},{"week_start":"2025-08-11","label":"11 Aug","distance_km":0.0},{"week_start":"2025-08-18","label":"18 Aug","distance_km":0.0},{"week_start":"2025-08-25","label":"25 Aug","distance_km":0.0},{"week_start":"2025-09-01","label":"1 Sep","distance_km":0.0},{"week_start":"2025-09-08","label":"8 Sep","distance_km":0.0},{"week_start":"2025-09-15","label":"15 Sep","distance_km":0.0},{"week_start":"2025-09-22","label":"22 Sep","distance_km":0.0},{"week_start":"2025-09-29","label":"29 Sep","distance_km":0.0},{"week_start":"2025-10-06","label":"6 Oct","distance_km":0.0},{"week_start":"2025-10-13","label":"13 Oct","distance_km":0.0},{"week_start":"2025-10-20","label":"20 Oct","distance_km":0.0},{"week_start":"2025-10-27","label":"27 Oct","distance_km":0.0},{"week_start":"2025-11-03","label":"3 Nov","distance_km":0.0},{"week_start":"2025-11-10","label":"10 Nov","distance_km":0.0},{"week_start":"2025-11-17","label":"17 Nov","distance_km":0.0},{"week_start":"2025-11-24","label":"24 Nov","distance_km":0.0},{"week_start":"2025-12-01","label":"1 Dec","distance_km":0.0},{"week_start":"2025-12-08","label":"8 Dec","distance_km":0.0},{"week_start":"2025-12-15","label":"15 Dec","distance_km":0.0},{"week_start":"2025-12-22","label":"22 Dec","distance_km":0.0},{"week_start":"2025-12-29","label":"29 Dec","distance_km":0.0},{"week_start":"2026-01-05","label":"5 Jan","distance_km":0.0},{"week_start":"2026-01-12","label":"12 Jan","distance_km":0.0},{"week_start":"2026-01-19","label":"19 Jan","distance_km":0.0},{"week_start":"2026-01-26","label":"26 Jan","distance_km":0.0},{"week_start":"2026-02-02","label":"2 Feb","distance_km":0.0},{"week_start":"2026-02-09","label":"9 Feb","distance_km":0.0},{"week_start":"2026-02-16","label":"16 Feb","distance_km":0.0},{"week_start":"2026-02-23","label":"23 Feb","distance_km":0.0},{"week_start":"2026-03-02","label":"2 Mar","distance_km":0.0},{"week_start":"2026-03-09","label":"9 Mar","distance_km":0.0},{"week_start":"2026-03-16","label":"16 Mar","distance_km":0.0},{"week_start":"2026-03-23","label":"23 Mar","distance_km":0.0},{"week_start":"2026-03-30","label":"30 Mar","distance_km":0.0},{"week_start":"2026-04-06","label":"6 Apr","distance_km":0.0},{"week_start":"2026-04-13","label":"13 Apr","distance_km":0.0},{"week_start":"2026-04-20","label":"20 Apr","distance_km":0.0},{"week_start":"2026-04-27","label":"27 Apr","distance_km":0.0},{"week_start":"2026-05-04","label":"4 May","distance_km":0.0},{"week_start":"2026-05-11","label":"11 May","distance_km":0.0},{"week_start":"2026-05-18","label":"18 May","distance_km":0.0}],"mileage_buckets_last_year":[{"week_start":"2024-05-27","label":"27 May","distance_km":0.0},{"week_start":"2024-06-03","label":"3 Jun","distance_km":0.0},{"week_start":"2024-06-10","label":"10 Jun","distance_km":0.0},{"week_start":"2024-06-17","label":"17 Jun","distance_km":0.0},{"week_start":"2024-06-24","label":"24 Jun","distance_km":0.0},{"week_start":"2024-07-01","label":"1 Jul","distance_km":0.0},{"week_start":"2024-07-08","label":"8 Jul","distance_km":0.0},{"week_start":"2024-07-15","label":"15 Jul","distance_km":0.0},{"week_start":"2024-07-22","label":"22 Jul","distance_km":0.0},{"week_start":"2024-07-29","label":"29 Jul","distance_km":0.0},{"week_start":"2024-08-05","label":"5 Aug","distance_km":0.0},{"week_start":"2024-08-12","label":"12 Aug","distance_km":0.0},{"week_start":"2024-08-19","label":"19 Aug","distance_km":0.0},{"week_start":"2024-08-26","label":"26 Aug","distance_km":0.0},{"week_start":"2024-09-02","label":"2 Sep","distance_km":0.0},{"week_start":"2024-09-09","label":"9 Sep","distance_km":0.0},{"week_start":"2024-09-16","label":"16 Sep","distance_km":0.0},{"week_start":"2024-09-23","label":"23 Sep","distance_km":0.0},{"week_start":"2024-09-30","label":"30 Sep","distance_km":0.0},{"week_start":"2024-10-07","label":"7 Oct","distance_km":0.0},{"week_start":"2024-10-14","label":"14 Oct","distance_km":0.0},{"week_start":"2024-10-21","label":"21 Oct","distance_km":0.0},{"week_start":"2024-10-28","label":"28 Oct","distance_km":0.0},{"week_start":"2024-11-04","label":"4 Nov","distance_km":0.0},{"week_start":"2024-11-11","label":"11 Nov","distance_km":0.0},{"week_start":"2024-11-18","label":"18 Nov","distance_km":0.0},{"week_start":"2024-11-25","label":"25 Nov","distance_km":0.0},{"week_start":"2024-12-02","label":"2 Dec","distance_km":0.0},{"week_start":"2024-12-09","label":"9 Dec","distance_km":0.0},{"week_start":"2024-12-16","label":"16 Dec","distance_km":0.0},{"week_start":"2024-12-23","label":"23 Dec","distance_km":0.0},{"week_start":"2024-12-30","label":"30 Dec","distance_km":0.0},{"week_start":"2025-01-06","label":"6 Jan","distance_km":0.0},{"week_start":"2025-01-13","label":"13 Jan","distance_km":0.0},{"week_start":"2025-01-20","label":"20 Jan","distance_km":0.0},{"week_start":"2025-01-27","label":"27 Jan","distance_km":0.0},{"week_start":"2025-02-03","label":"3 Feb","distance_km":0.0},{"week_start":"2025-02-10","label":"10 Feb","distance_km":0.0},{"week_start":"2025-02-17","label":"17 Feb","distance_km":0.0},{"week_start":"2025-02-24","label":"24 Feb","distance_km":0.0},{"week_start":"2025-03-03","label":"3 Mar","distance_km":0.0},{"week_start":"2025-03-10","label":"10 Mar","distance_km":0.0},{"week_start":"2025-03-17","label":"17 Mar","distance_km":0.0},{"week_start":"2025-03-24","label":"24 Mar","distance_km":0.0},{"week_start":"2025-03-31","label":"31 Mar","distance_km":0.0},{"week_start":"2025-04-07","label":"7 Apr","distance_km":0.0},{"week_start":"2025-04-14","label":"14 Apr","distance_km":0.0},{"week_start":"2025-04-21","label":"21 Apr","distance_km":0.0},{"week_start":"2025-04-28","label":"28 Apr","distance_km":0.0},{"week_start":"2025-05-05","label":"5 May","distance_km":0.0},{"week_start":"2025-05-12","label":"12 May","distance_km":0.0},{"week_start":"2025-05-19","label":"19 May","distance_km":0.0}],"pace_points":[]}},"focus_areas":[{"title":"Build a baseline","body":"No runs logged in the last 14 days. Send a run screenshot to start populating the dashboard."}],"upcoming_races":[{"event":"10K","location":"Bangkok","date":"2026-07-19","goal":"comfortable race effort, target 6:30-6:45/km","days_to_go":61},{"event":"10K","location":"Bangkok","date":"2026-08-12","goal":"first proper race effort if July went well","days_to_go":85},{"event":"Half Marathon","location":"Bangkok","date":"2026-11-30","goal":"target sub 2:15, stretch 2:10","days_to_go":195}],"recent_runs":[],"training_plan_md":"## Who I'm coaching\n\n**Cameron** \u2014 Bangkok-based runner, UK citizen. Athletic background: 400m county-level sprinter (51 s) and competitive teenage tennis player. **Strong fast-twitch base.**\n\nCurrently in a **6-week Z2 rebuild** (May\u2013Jun 2026) following a laparoscopic cholecystectomy on 2026-03-15. Active health constraints: hallux limitis (right foot, chronic), right ankle/shin history. See `reference_healthspan_framework.md` for the full picture.\n\n---\n\n## Current state (snapshot as of 2026-05-17 \u2014 refresh from daily dashboards)\n\n- **Weight:** 98.2 kg (Garmin goal 87.5 kg \u2192 ~10.7 kg to goal)\n- **HRV 7d avg:** 53 ms \u2014 status **Unbalanced (orange)**\n  - This week's pattern: green Mon\u2013Wed, orange Thu\u2013Sun after harder efforts\n- **Last night's sleep:** 6h 19m, score 79 (Fair)\n\nWhen Cameron sends a daily dashboard, update this section.\n\n---\n\n## HR baselines (confirmed)\n\n| Metric | Value | Notes |\n|---|---|---|\n| Max HR | **181 bpm** | physiological ceiling |\n| LTHR (lactate threshold) | **150 bpm** | basis for zone calculation |\n| Resting HR | **41\u201343 bpm** | healthy baseline when fit |\n| RHR warning | **< 38 bpm** | red flag \u2014 do not push training load |\n| VO2 Max | **43 (Good)** | track for improvement over time |\n\n## HR zones (LTHR = 150)\n\n| Zone | Range | Purpose |\n|---|---|---|\n| Z1 | < 120 bpm | recovery |\n| Z2 | 120\u2013136 bpm | aerobic base |\n| Z3 | 136\u2013150 bpm | tempo |\n| Z4 | 150\u2013165 bpm | threshold |\n| Z5 | > 165 bpm | max |\n\n**Easy-day target within Z2: 120\u2013126 bpm.** Flag if avg HR is consistently above 126 on easy days \u2014 that's the operational ceiling for \"easy\", not the full Z2 upper bound of 136.\n\n---\n\n## Coaching logic \u2014 hard rules\n\n1. **Z2 easy-day ceiling: 126 bpm.** Flag drift above this on easy days.\n2. **Right ankle stiffness** mentioned \u2192 note, log, watch for a pattern.\n3. **HR drift before 10 km on a long run** \u2192 too much load; recommend an easier next session.\n4. **Abdominal feedback of any kind** \u2192 flag immediately, reduce intensity (post-cholecystectomy recovery).\n5. **RHR < 38 bpm** \u2192 warning sign; do not push training load.\n6. **HRV orange \u22652 consecutive days** \u2192 easier session or rest.\n7. **HRV red** \u2192 rest day, no exceptions.\n8. **RHR > 48 bpm** \u2192 flag as possible fatigue or illness.\n\n---"}</script>
+<script>
+(function(){
+  const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
+  const $ = (id) => document.getElementById(id);
+
+  function fmtPace(sec){
+    if (sec == null) return '—';
+    const m = Math.floor(sec/60), s = Math.round(sec - m*60);
+    return m + ':' + String(s).padStart(2,'0') + '/km';
+  }
+  function fmtTime(sec){
+    if (!sec) return '—';
+    const h = Math.floor(sec/3600);
+    const m = Math.floor((sec%3600)/60);
+    const s = sec%60;
+    return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+               : `${m}:${String(s).padStart(2,'0')}`;
+  }
+  function pct(cur, prev){
+    if (!prev || prev === 0) return null;
+    return Math.round(((cur - prev) / prev) * 100);
+  }
+  function yoyHtml(cur, prev, higherIsBetter=true){
+    const p = pct(cur, prev);
+    if (p === null) return '<span class="yoy flat">no LY data</span>';
+    const cls = p === 0 ? 'flat' : ((p > 0) === higherIsBetter ? 'up' : 'down');
+    const arrow = p > 0 ? '↑' : (p < 0 ? '↓' : '·');
+    return `<span class="yoy ${cls}">${arrow} ${Math.abs(p)}% vs LY</span>`;
+  }
+
+  // ---- header ----
+  $('gen-ts').textContent = 'Generated ' + DATA.generated_at;
+  const h = DATA.header;
+  const nr = h.next_race;
+  const headerHtml = `
+    <div class="stat">
+      <span class="label">This week</span>
+      <span class="value">${h.week_distance_km.toFixed(1)} km</span>
+      <span class="sub">mileage so far</span>
+    </div>
+    <div class="stat">
+      <span class="label">Streak</span>
+      <span class="value">${h.streak_days}<span style="font-size:14px;color:var(--text-dim);"> d</span></span>
+      <span class="sub">${h.streak_days === 0 ? 'no current streak' : 'consecutive days'}</span>
+    </div>
+    <div class="stat">
+      <span class="label">Next race</span>
+      <span class="value">${nr ? nr.days_to_go + '<span style="font-size:14px;color:var(--text-dim);"> d</span>' : '—'}</span>
+      <span class="sub">${nr ? `${nr.event} · ${nr.location}` : 'no upcoming race'}</span>
+    </div>
+  `;
+  $('header-card').innerHTML = headerHtml;
+
+  // ---- period switching ----
+  let currentPeriod = 'week';
+  let mileageChart = null, paceChart = null;
+
+  function renderKpis(){
+    const p = DATA.periods[currentPeriod];
+    const c = p.current, l = p.last_year;
+    const labelMap = { week: 'this week', month: 'this month', year: 'this year' };
+    $('kpis').innerHTML = `
+      <div class="kpi">
+        <div class="label">Distance</div>
+        <div class="value">${c.distance_km.toFixed(1)} km</div>
+        ${yoyHtml(c.distance_km, l.distance_km, true)}
+      </div>
+      <div class="kpi">
+        <div class="label">Avg pace</div>
+        <div class="value">${fmtPace(c.avg_pace_sec_per_km)}</div>
+        ${c.avg_pace_sec_per_km && l.avg_pace_sec_per_km
+            ? yoyHtml(c.avg_pace_sec_per_km, l.avg_pace_sec_per_km, false)
+            : '<span class="yoy flat">no LY data</span>'}
+      </div>
+      <div class="kpi">
+        <div class="label">Avg HR</div>
+        <div class="value">${c.avg_hr_bpm != null ? c.avg_hr_bpm + ' bpm' : '—'}</div>
+        ${c.avg_hr_bpm && l.avg_hr_bpm
+            ? yoyHtml(c.avg_hr_bpm, l.avg_hr_bpm, false)
+            : '<span class="yoy flat">no LY data</span>'}
+      </div>
+      <div class="kpi">
+        <div class="label">Runs · ${labelMap[currentPeriod]}</div>
+        <div class="value">${c.n_runs}</div>
+        ${yoyHtml(c.n_runs, l.n_runs, true)}
+      </div>
+    `;
+  }
+
+  function renderMileageChart(){
+    const p = DATA.periods[currentPeriod];
+    const cur = p.mileage_buckets_current;
+    const ly  = p.mileage_buckets_last_year;
+    const labels = cur.map(b => b.label);
+    const curData = cur.map(b => b.distance_km);
+    const lyData  = ly.map(b => b.distance_km);
+    if (mileageChart) mileageChart.destroy();
+    const ctx = $('mileage-chart').getContext('2d');
+    mileageChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'This year', data: curData, backgroundColor: '#4cc2ff', borderRadius: 4 },
+          { label: 'Last year', data: lyData,  backgroundColor: '#3a4654', borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e6edf3' } } },
+        scales: {
+          x: { ticks: { color: '#8b96a3' }, grid: { color: '#2a313c' } },
+          y: { ticks: { color: '#8b96a3' }, grid: { color: '#2a313c' },
+               title: { display: true, text: 'km', color: '#8b96a3' } },
+        },
+      },
+    });
+  }
+
+  function renderPaceChart(){
+    const p = DATA.periods[currentPeriod];
+    const pts = p.pace_points;
+    if (paceChart) paceChart.destroy();
+    const ctx = $('pace-chart').getContext('2d');
+    paceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: pts.map(pt => pt.date),
+        datasets: [{
+          label: 'Pace (s/km)',
+          data: pts.map(pt => pt.pace_sec_per_km),
+          borderColor: '#f78166',
+          backgroundColor: 'rgba(247,129,102,0.15)',
+          tension: 0.25, fill: true, pointRadius: 3,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: (c) => fmtPace(c.parsed.y) },
+          },
+        },
+        scales: {
+          x: { ticks: { color: '#8b96a3' }, grid: { color: '#2a313c' } },
+          y: { reverse: true,
+               ticks: { color: '#8b96a3', callback: (v) => fmtPace(v) },
+               grid: { color: '#2a313c' } },
+        },
+      },
+    });
+  }
+
+  function switchPeriod(period){
+    currentPeriod = period;
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.period === period);
+    });
+    renderKpis();
+    renderMileageChart();
+    renderPaceChart();
+  }
+
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => switchPeriod(t.dataset.period));
+  });
+
+  // ---- focus areas ----
+  const fa = DATA.focus_areas || [];
+  $('focus').innerHTML = fa.length
+    ? fa.map(f => `<div class="focus"><div class="title">${escapeHtml(f.title)}</div><div class="body">${escapeHtml(f.body)}</div></div>`).join('')
+    : '<div class="empty">No focus areas generated.</div>';
+
+  // ---- races ----
+  const races = DATA.upcoming_races || [];
+  $('races').innerHTML = races.length
+    ? '<div class="race-list">' + races.map(r => `
+        <div class="race">
+          <div>
+            <div class="name">${escapeHtml(r.event)} · ${escapeHtml(r.location)}</div>
+            <div class="meta">${r.date} · ${escapeHtml(r.goal || '')}</div>
+          </div>
+          <div class="countdown">${r.days_to_go} <span class="unit">days</span></div>
+        </div>`).join('') + '</div>'
+    : '<div class="empty">No upcoming races on the calendar.</div>';
+
+  // ---- recent runs ----
+  const rr = DATA.recent_runs || [];
+  $('recent').innerHTML = rr.length
+    ? `<table class="runs-table">
+         <thead><tr><th>Date</th><th>Run</th><th>Distance</th><th>Pace</th><th>HR</th><th>Notes</th></tr></thead>
+         <tbody>
+         ${rr.map(r => `<tr>
+            <td>${r.date}</td>
+            <td>${escapeHtml(r.title)}</td>
+            <td>${r.distance_km != null ? r.distance_km.toFixed(2) + ' km' : '—'}</td>
+            <td>${escapeHtml(r.avg_pace || '—')}</td>
+            <td>${r.avg_hr_bpm != null ? r.avg_hr_bpm + ' bpm' : '—'}</td>
+            <td class="note">${escapeHtml(r.notes || '')}</td>
+          </tr>`).join('')}
+         </tbody>
+       </table>`
+    : '<div class="empty">No runs logged yet. Send a run screenshot to start logging.</div>';
+
+  // ---- training plan (very small markdown subset) ----
+  $('plan').innerHTML = renderSimpleMarkdown(DATA.training_plan_md || '');
+
+  // initial render
+  switchPeriod('week');
+
+  function escapeHtml(s){
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
+
+  function renderSimpleMarkdown(md){
+    // Minimal: ##/### headers, |table|, bullets, **bold**, paragraphs.
+    const lines = md.split('\n');
+    let out = [];
+    let i = 0;
+    while (i < lines.length){
+      let line = lines[i];
+      if (/^### /.test(line)) { out.push('<h3>' + escapeHtml(line.slice(4)) + '</h3>'); i++; continue; }
+      if (/^## /.test(line))  { out.push('<h3>' + escapeHtml(line.slice(3)) + '</h3>'); i++; continue; }
+      if (/^\|/.test(line)){
+        const rows = [];
+        while (i < lines.length && /^\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+        const cells = rows.map(r => r.split('|').slice(1,-1).map(c => c.trim()));
+        // Drop separator row (all dashes)
+        const filtered = cells.filter(row => !row.every(c => /^-+$/.test(c)));
+        if (filtered.length){
+          const [head, ...body] = filtered;
+          out.push('<table><thead><tr>'
+            + head.map(c => '<th>' + escapeHtml(c) + '</th>').join('')
+            + '</tr></thead><tbody>'
+            + body.map(r => '<tr>' + r.map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('')
+            + '</tbody></table>');
+        }
+        continue;
+      }
+      if (/^- /.test(line) || /^\d+\. /.test(line)){
+        const items = [];
+        while (i < lines.length && (/^- /.test(lines[i]) || /^\d+\. /.test(lines[i]))){
+          items.push(lines[i].replace(/^- |^\d+\. /, ''));
+          i++;
+        }
+        out.push('<ul>' + items.map(it => '<li>' + inline(it) + '</li>').join('') + '</ul>');
+        continue;
+      }
+      if (line.trim() === ''){ i++; continue; }
+      // paragraph
+      const para = [];
+      while (i < lines.length && lines[i].trim() !== '' && !/^[#|\-]/.test(lines[i]) && !/^\d+\. /.test(lines[i])){
+        para.push(lines[i]); i++;
+      }
+      out.push('<p>' + inline(para.join(' ')) + '</p>');
+    }
+    return out.join('\n');
+
+    function inline(s){
+      return escapeHtml(s)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+  }
+})();
+</script>
+</body>
+</html>
